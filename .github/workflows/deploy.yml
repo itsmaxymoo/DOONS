@@ -1,0 +1,97 @@
+name: Build
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Download Pico-8 assets
+        env:
+          PICO8_HOST: ${{ secrets.pico8_host }}
+          PICO8_HOST_USER: ${{ secrets.pico8_host_user }}
+          PICO8_HOST_PASSWORD: ${{ secrets.pico8_host_password }}
+        run: |
+          curl \
+            --fail \
+            --silent \
+            --show-error \
+            --user "${PICO8_HOST_USER}:${PICO8_HOST_PASSWORD}" \
+            "${PICO8_HOST}" \
+            --output ./pico8.zip
+
+      - name: Extract Pico-8
+        run: unzip -o pico8.zip
+
+      - name: Add Pico-8 to PATH
+        run: echo "${{ github.workspace }}/pico-8" >> "$GITHUB_PATH"
+    
+      - name: Install Xvfb
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: Build
+        run: xvfb-run -a python build.py
+
+      - name: Upload release assets
+        run: gh release upload "${{ github.event.release.tag_name }}" build/*
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Upload to itch.io (web)
+        uses: robpc/itchio-upload-action@v1
+        with:
+          path: build/doons_web.zip
+          project: anthracitesoftware/doons
+          channel: web
+          version: ${{ github.event.release.tag_name }}
+          api-key: ${{ secrets.ITCH_TOKEN }}
+
+      - name: Upload to itch.io (windows)
+        uses: robpc/itchio-upload-action@v1
+        with:
+          path: build/doons_windows.zip
+          project: anthracitesoftware/doons
+          channel: windows
+          version: ${{ github.event.release.tag_name }}
+          api-key: ${{ secrets.ITCH_TOKEN }}
+
+      - name: Upload to itch.io (linux)
+        uses: robpc/itchio-upload-action@v1
+        with:
+          path: build/doons_linux.zip
+          project: anthracitesoftware/doons
+          channel: linux
+          version: ${{ github.event.release.tag_name }}
+          api-key: ${{ secrets.ITCH_TOKEN }}
+
+      - name: Upload to itch.io (mac)
+        uses: robpc/itchio-upload-action@v1
+        with:
+          path: build/doons_osx.zip
+          project: anthracitesoftware/doons
+          channel: mac
+          version: ${{ github.event.release.tag_name }}
+          api-key: ${{ secrets.ITCH_TOKEN }}
+
+      - name: Upload to itch.io (p8)
+        uses: robpc/itchio-upload-action@v1
+        with:
+          path: build/doons.p8.png
+          project: anthracitesoftware/doons
+          channel: pico8
+          version: ${{ github.event.release.tag_name }}
+          api-key: ${{ secrets.ITCH_TOKEN }}
